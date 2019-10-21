@@ -22,11 +22,19 @@ public class ArtifactContainer {
   private final String coordinate;
   private final String artifactName;
 
-  private final List<ArtifactContainer> dependencies;
+  // Direct declared dependencies
+  private final Set<ArtifactContainer> dependencies;
+
+  // Set of declared dependencies that are not used
   private final Set<ArtifactContainer> unusedDependencies = new HashSet<>();
 
+  // Set of classes that this artifact defines
   private final Set<String> definedClasses = new HashSet<>();
+
+  // Map of class -> artifacts that define that class
   private final Map<String, Set<ArtifactContainer>> dependsOnClasses = new HashMap<>();
+
+  // Set of classes which were not found anywhere
   private final Set<String> unknownDependencies = new HashSet<>();
 
   private final MyClassVisitor myClassVisitor;
@@ -36,7 +44,7 @@ public class ArtifactContainer {
   public ArtifactContainer(String coordinate, String artifactName) {
     this.coordinate = coordinate;
     this.artifactName = artifactName;
-    this.dependencies = new ArrayList<>();
+    this.dependencies = new HashSet<>();
     this.myClassVisitor = new MyClassVisitor(this);
   }
 
@@ -167,6 +175,17 @@ public class ArtifactContainer {
     resolved = true;
   }
 
+  public void showTransitive() {
+    Set<String> undeclared = dependsOnClasses.values().stream()
+            .flatMap(containers -> containers.stream()
+                    .filter(container -> !dependencies.contains(container)))
+            .map(container -> container.artifactName)
+            .collect(Collectors.toSet());
+    if (!undeclared.isEmpty()) {
+      System.out.println(this.coordinate + " has undeclared dependencies on " + undeclared);
+    }
+  }
+
   private void loadClasses(File file) {
     try {
       if (file.isFile() && file.getName().endsWith(".jar")) {
@@ -219,7 +238,7 @@ public class ArtifactContainer {
     dependencies.add(coordinate);
   }
 
-  public List<ArtifactContainer> getDependencies() {
+  public Set<ArtifactContainer> getDependencies() {
     return dependencies;
   }
 

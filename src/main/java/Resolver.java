@@ -18,8 +18,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Resolver {
+  // Map of artifact name -> artifact
   private final Map<String, ArtifactContainer> artifacts = new HashMap<>();
-  private final Map<String, List<String>> dependencies = new HashMap<>();
 
   private List<ArtifactContainer> roots = new ArrayList<>();
 
@@ -128,7 +128,6 @@ public class Resolver {
     artifacts.put(coordinate, container);
 
     try {
-      this.dependencies.put(coordinate, dependencyCoordinates);
       for (MavenArtifactInfo dependency : dependencies) {
         ArtifactContainer resolvedDependency = resolve(dependency);
         container.addDependency(resolvedDependency);
@@ -162,7 +161,7 @@ public class Resolver {
   private void printDependencies(String indent, Set<ArtifactContainer> visited, Collection<ArtifactContainer> artifacts) {
     String nextIndent = indent + "  ";
     for (ArtifactContainer value : artifacts) {
-      List<ArtifactContainer> dependencies = value.getDependencies();
+      Set<ArtifactContainer> dependencies = value.getDependencies();
       boolean hasDependencies = !dependencies.isEmpty();
       boolean doVisit = hasDependencies && visited.add(value);
       boolean truncated = hasDependencies && !doVisit;
@@ -173,6 +172,13 @@ public class Resolver {
         System.out.println(nextIndent + "declared:");
         printDependencies(nextIndent + "  ", visited, dependencies);
       }
+    }
+  }
+
+  public void showTransitiveProblems() {
+    System.out.println("Transitive problems:");
+    for (ArtifactContainer value : artifacts.values()) {
+      value.showTransitive();
     }
   }
 }
