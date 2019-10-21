@@ -1,22 +1,18 @@
-import org.jboss.shrinkwrap.api.Archive;
-import org.jboss.shrinkwrap.resolver.api.maven.embedded.BuiltProject;
-import org.jboss.shrinkwrap.resolver.api.maven.embedded.EmbeddedMaven;
-
-import java.io.File;
-import java.util.List;
+import java.io.IOException;
 
 public class Main {
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException {
 
-    String filename = "../folsom/folsom/pom.xml";
+    //String filename = "../sparkey-java/pom.xml";
+    String filename = "../sc2stats/pom.xml";
+    //String filename = "../folsom/folsom/pom.xml";
 
-    BuiltProject builtProject = EmbeddedMaven.forProject(filename)
-            .setGoals("clean", "package")
-            .build();
+    //Resolver resolver = Resolver.createFromPomfile(filename);
+    //Resolver resolver = Resolver.createFromProject(filename);
+    Resolver resolver = Resolver.createFromCoordinate("com.spotify:missinglink-maven-plugin:0.1.1");
 
-    File targetDirectory = builtProject.getTargetDirectory();
-    System.out.println("target: " + targetDirectory);
-    List<Archive> archives = builtProject.getArchives();
-
+    // TODO: also show direct usages of transitive dependencies
+    resolver.printDependencyTree();
   }
+
 }
