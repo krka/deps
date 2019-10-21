@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -177,13 +176,20 @@ public class ArtifactContainer {
 
   public void showTransitive() {
     Set<String> undeclared = dependsOnClasses.values().stream()
-            .flatMap(containers -> containers.stream()
-                    .filter(container -> !dependencies.contains(container)))
+            .filter(containers -> isMissing(containers))
+            .flatMap(Collection::stream)
             .map(container -> container.artifactName)
             .collect(Collectors.toSet());
     if (!undeclared.isEmpty()) {
       System.out.println(this.coordinate + " has undeclared dependencies on " + undeclared);
     }
+  }
+
+  private boolean isMissing(Set<ArtifactContainer> containers) {
+    return containers.stream()
+            .filter(dependencies::contains)
+            .findAny()
+            .isEmpty();
   }
 
   private void loadClasses(File file) {

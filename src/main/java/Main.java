@@ -10,8 +10,8 @@ public class Main {
     //Resolver resolver = Resolver.createFromPomfile(filename);
     //Resolver resolver = Resolver.createFromProject(filename);
     Resolver resolver = Resolver.createFromCoordinate("com.spotify:missinglink-maven-plugin:0.1.1");
+    //Resolver resolver = Resolver.createFromCoordinate("com.spotify:futures-extra:4.2.1");
 
-    // TODO: also show direct usages of transitive dependencies
     resolver.printDependencyTree();
     resolver.showTransitiveProblems();
 

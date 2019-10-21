@@ -1,26 +1,34 @@
+import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.TypePath;
 
 import static org.objectweb.asm.Opcodes.ASM7;
 
 class MyClassVisitor extends ClassVisitor {
-  private final MyMethodVisitor myMethodVisitor;
   private final ArtifactContainer artifactContainer;
+  private final MyMethodVisitor methodVisitor;
+  private final MyAnnotationVisitor annotationVisitor;
+  private final MyFieldVisitor fieldVisitor;
 
   MyClassVisitor(ArtifactContainer artifactContainer) {
     super(ASM7);
-    myMethodVisitor = new MyMethodVisitor(artifactContainer);
     this.artifactContainer = artifactContainer;
+    annotationVisitor = new MyAnnotationVisitor(artifactContainer);
+    methodVisitor = new MyMethodVisitor(artifactContainer, annotationVisitor);
+    fieldVisitor = new MyFieldVisitor(artifactContainer, annotationVisitor);
   }
 
   @Override
   public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
     artifactContainer.addDefinition(name);
 
-    addClass(superName);
+    if (superName != null) {
+      artifactContainer.addClass(superName);
+    }
     for (String anInterface : interfaces) {
-      addClass(anInterface);
+      artifactContainer.addClass(anInterface);
     }
   }
 
@@ -32,13 +40,13 @@ class MyClassVisitor extends ClassVisitor {
   @Override
   public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
     artifactContainer.addDescriptor(descriptor);
-    return null;
+    return fieldVisitor;
   }
 
   @Override
   public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
     artifactContainer.addDescriptor(descriptor);
-    return myMethodVisitor;
+    return methodVisitor;
   }
 
   @Override
@@ -46,7 +54,16 @@ class MyClassVisitor extends ClassVisitor {
     super.visitEnd();
   }
 
-  void addClass(String className) {
-    artifactContainer.addClass(className);
+  @Override
+  public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+    artifactContainer.addDescriptor(descriptor);
+    return annotationVisitor;
   }
+
+  @Override
+  public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+    artifactContainer.addDescriptor(descriptor);
+    return annotationVisitor;
+  }
+
 }

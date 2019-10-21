@@ -9,10 +9,12 @@ import static org.objectweb.asm.Opcodes.ASM7;
 
 class MyMethodVisitor extends MethodVisitor {
   private final ArtifactContainer artifactContainer;
+  private final AnnotationVisitor annotationVisitor;
 
-  public MyMethodVisitor(ArtifactContainer artifactContainer) {
+  public MyMethodVisitor(ArtifactContainer artifactContainer, MyAnnotationVisitor annotationVisitor) {
     super(ASM7);
     this.artifactContainer = artifactContainer;
+    this.annotationVisitor = annotationVisitor;
   }
 
   @Override
@@ -22,17 +24,19 @@ class MyMethodVisitor extends MethodVisitor {
 
   @Override
   public AnnotationVisitor visitAnnotationDefault() {
-    return super.visitAnnotationDefault();
+    return annotationVisitor;
   }
 
   @Override
   public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-    return super.visitAnnotation(descriptor, visible);
+    artifactContainer.addDescriptor(descriptor);
+    return annotationVisitor;
   }
 
   @Override
   public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-    return super.visitTypeAnnotation(typeRef, typePath, descriptor, visible);
+    artifactContainer.addDescriptor(descriptor);
+    return annotationVisitor;
   }
 
   @Override
@@ -42,7 +46,8 @@ class MyMethodVisitor extends MethodVisitor {
 
   @Override
   public AnnotationVisitor visitParameterAnnotation(int parameter, String descriptor, boolean visible) {
-    return super.visitParameterAnnotation(parameter, descriptor, visible);
+    artifactContainer.addDescriptor(descriptor);
+    return annotationVisitor;
   }
 
   @Override
@@ -186,4 +191,5 @@ class MyMethodVisitor extends MethodVisitor {
   public void visitEnd() {
     super.visitEnd();
   }
+
 }
