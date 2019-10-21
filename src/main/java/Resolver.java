@@ -34,7 +34,7 @@ public class Resolver {
 
   public static Resolver createFromPomfile(String filename) {
     List<MavenResolvedArtifact> artifacts = Maven.resolver().loadPomFromFile(filename)
-            .importDependencies(ScopeType.COMPILE)
+            .importDependencies(ScopeType.COMPILE, ScopeType.PROVIDED)
             .resolve().withTransitivity().asList(MavenResolvedArtifact.class);
 
     return create(artifacts);
@@ -58,7 +58,7 @@ public class Resolver {
 
     List<MavenResolvedArtifact> dependencies = builtProject.getModel()
             .getDependencies().stream()
-            .filter(dependency -> dependency.getScope().equals("compile"))
+            .filter(dependency -> Set.of("compile", "provided").contains(dependency.getScope()))
             .map(dependency -> dependency.getGroupId() + ":" + dependency.getArtifactId() + ":" + dependency.getVersion())
             .map(coordinate -> Maven.resolver().resolve(coordinate)
                     .withoutTransitivity().asSingleResolvedArtifact())
