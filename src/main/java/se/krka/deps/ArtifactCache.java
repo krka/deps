@@ -15,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import static java.lang.System.getProperty;
 
@@ -35,7 +37,7 @@ class ArtifactCache {
 
   public static ArtifactCache getDefault() {
     String homeDir = getProperty("user.home");
-    File root = new File(new File(new File(homeDir, ".m2"), "repository"), "deps");
+    File root = new File(new File(new File(homeDir, ".m2"), "repository"), "dependency-data");
     return new ArtifactCache(root);
   }
 
@@ -70,15 +72,15 @@ class ArtifactCache {
   }
 
   private void writeObject(File dir, String filename, JSONObject object) throws IOException {
-    File file = new File(dir, filename);
-    try (Writer writer = new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8)) {
+    File file = new File(dir, filename + ".gz");
+    try (Writer writer = new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(file)), StandardCharsets.UTF_8)) {
       object.write(writer, 2, 0);
     }
   }
 
   private JSONObject getObject(File dir, String filename) throws IOException {
-    File file = new File(dir, filename);
-    try (Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
+    File file = new File(dir, filename + ".gz");
+    try (Reader reader = new InputStreamReader(new GZIPInputStream(new FileInputStream(file)), StandardCharsets.UTF_8)) {
       return new JSONObject(new JSONTokener(reader));
     }
   }

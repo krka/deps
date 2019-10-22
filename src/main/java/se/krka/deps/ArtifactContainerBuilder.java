@@ -95,7 +95,7 @@ class ArtifactContainerBuilder {
   }
 
   ArtifactContainer build(File file) {
-    measure("read classes", () -> loadClasses(file));
+    loadClasses(file);
 
     usedClasses.removeAll(definedClasses);
 
@@ -107,27 +107,23 @@ class ArtifactContainerBuilder {
     // Map of class -> artifacts that define that class
     final Map<String, Set<ArtifactContainer>> dependsOnClasses = new HashMap<>();
 
-    measure("find containers", () -> {
-      for (String className : usedClasses) {
-        dependsOnClasses.put(className, findContainers(className, flattenedDependencies));
-      }
-    });
+    for (String className : usedClasses) {
+      dependsOnClasses.put(className, findContainers(className, flattenedDependencies));
+    }
 
-    Set<String> allUsed = measure("find all used", () ->
-            dependsOnClasses.values().stream()
+    Set<String> allUsed = dependsOnClasses.values().stream()
                     .flatMap(Collection::stream)
                     .map(ArtifactContainer::getArtifactName)
-                    .collect(Collectors.toSet()));
+                    .collect(Collectors.toSet());
 
     // Set of declared dependencies that are not used
     final Set<ArtifactContainer> unusedDependencies = new HashSet<>(dependencies);
     unusedDependencies.removeIf(artifactContainer -> allUsed.contains(artifactContainer.getArtifactName()));
 
-    Set<ArtifactContainer> undeclared = measure("find undeclared", () ->
-            dependsOnClasses.values().stream()
+    Set<ArtifactContainer> undeclared = dependsOnClasses.values().stream()
                     .filter(this::isMissing)
                     .flatMap(Collection::stream)
-                    .collect(Collectors.toSet()));
+                    .collect(Collectors.toSet());
 
     Map<String, Set<ArtifactContainer>> dependencyMap = Node.getDependencyMap(dependsOnClasses);
     Map<String, Set<String>> mappings = dependencyMap.entrySet().stream()
@@ -147,31 +143,6 @@ class ArtifactContainerBuilder {
 
   private Set<String> mapToName(Set<ArtifactContainer> value) {
     return value.stream().map(ArtifactContainer::getArtifactName).collect(Collectors.toSet());
-  }
-
-  private void measure(String s, Runnable runnable) {
-    long t1 = System.currentTimeMillis();
-    runnable.run();
-    long t2 = System.currentTimeMillis();
-    long diff = t2 - t1;
-    if (diff > 10) {
-      System.out.println(getCoordinate() + ": time for " + s + ": " + diff + " ms");
-    }
-  }
-
-  private <T> T measure(String s, Callable<T> callable) {
-    try {
-      long t1 = System.currentTimeMillis();
-      T value = callable.call();
-      long t2 = System.currentTimeMillis();
-      long diff = t2 - t1;
-      if (diff > 10) {
-        System.out.println(getCoordinate() + ": time for " + s + ": " + diff + " ms");
-      }
-      return value;
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
   }
 
   private Set<ArtifactContainer> findContainers(String className, Set<ArtifactContainer> flattenedDependencies) {

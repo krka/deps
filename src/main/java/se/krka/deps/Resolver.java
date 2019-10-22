@@ -30,7 +30,6 @@ public class Resolver {
 
   private static Resolver create(List<MavenResolvedArtifact> artifacts) {
     Resolver resolver = new Resolver();
-    System.out.println("Resolving dependencies:");
     for (MavenResolvedArtifact artifact : artifacts) {
       resolver.roots.add(resolver.resolve(artifact.getCoordinate()));
     }
@@ -64,8 +63,8 @@ public class Resolver {
   }
 
   private static void addModules(Resolver resolver, BuiltProject module) {
-    addRoot(resolver, module);
     module.getModules().forEach(submodule -> addModules(resolver, submodule));
+    addRoot(resolver, module);
   }
 
   private static void addRoot(Resolver resolver, BuiltProject builtProject) {
