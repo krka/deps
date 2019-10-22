@@ -25,12 +25,12 @@ class MyAnnotationVisitor extends AnnotationVisitor {
   @Override
   public AnnotationVisitor visitAnnotation(String name, String descriptor) {
     artifactContainer.addDescriptor(descriptor);
-    return super.visitAnnotation(name, descriptor);
+    return this;
   }
 
   @Override
   public AnnotationVisitor visitArray(String name) {
-    return super.visitArray(name);
+    return this;
   }
 
 }

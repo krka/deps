@@ -17,15 +17,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class Resolver {
-  private static final ArtifactContainer IN_PROGRESS_MARKER = ArtifactContainer.IN_PROGRESS_MARKER;
-
   // Map of artifact name -> artifact
   private final Map<String, ArtifactContainer> artifacts = new HashMap<>();
 
   private final List<ArtifactContainer> roots = new ArrayList<>();
+
+  private final ArtifactCache artifactCache = ArtifactCache.getDefault();
 
   private static Resolver create(List<MavenResolvedArtifact> artifacts) {
     Resolver resolver = new Resolver();
@@ -72,11 +73,8 @@ public class Resolver {
     String artifactId = builtProject.getModel().getArtifactId();
     String version = builtProject.getModel().getVersion();
 
-    String artifactName = groupId + ":" + artifactId;
-    String coordinate = groupId + ":" + artifactId + ":" + version;
-
     Resolver resolver = new Resolver();
-    resolver.roots.add(resolver.resolve(artifactName, coordinate, dependencies, file));
+    resolver.roots.add(resolver.resolve(groupId, artifactId, version, dependencies, file));
 
     return resolver;
   }
@@ -85,14 +83,24 @@ public class Resolver {
     return resolve(artifact.getCoordinate());
   }
 
-  private ArtifactContainer resolve(MavenCoordinate coordinate1) {
-    String coordinate = getCoordinate(coordinate1);
+  ArtifactContainer resolve(String groupId, String artifactId, String version) {
+    return resolve(groupId + ":" + artifactId + ":" + version);
+  }
 
-    MavenResolvedArtifact resolvedArtifact = Maven.resolver()
-            .resolve(coordinate)
-            .withoutTransitivity()
-            .asSingleResolvedArtifact();
+  private ArtifactContainer resolve(MavenCoordinate coordinate) {
+    return resolve(getCoordinate(coordinate));
+  }
+
+  private ArtifactContainer resolve(String coordinate) {
+    MavenResolvedArtifact resolvedArtifact = resolveMavenArtifact(coordinate);
     return resolve(resolvedArtifact);
+  }
+
+  MavenResolvedArtifact resolveMavenArtifact(String coordinate) {
+    return Maven.resolver()
+              .resolve(coordinate)
+              .withoutTransitivity()
+              .asSingleResolvedArtifact();
   }
 
   private ArtifactContainer resolve(MavenResolvedArtifact artifact) {
@@ -102,39 +110,44 @@ public class Resolver {
     return resolve(coordinate, dependencies, file);
   }
 
-  private ArtifactContainer resolve(MavenCoordinate coordinate1, MavenArtifactInfo[] dependencies, File file) {
-    String coordinate = getCoordinate(coordinate1);
-    return resolve(getArtifactName(coordinate1), coordinate, dependencies, file);
+  private ArtifactContainer resolve(MavenCoordinate coordinate, MavenArtifactInfo[] dependencies, File file) {
+    String groupId = coordinate.getGroupId();
+    String artifactId = coordinate.getArtifactId();
+    String version = coordinate.getVersion();
+    return resolve(groupId, artifactId, version, dependencies, file);
   }
 
-  private ArtifactContainer resolve(String artifactName, String coordinate, MavenArtifactInfo[] dependencies, File file) {
-    return resolve(artifactName, coordinate, Arrays.asList(dependencies), file);
+  private ArtifactContainer resolve(String groupId, String artifactId, String version, MavenArtifactInfo[] dependencies, File file) {
+    return resolve(groupId, artifactId, version, Arrays.asList(dependencies), file);
   }
 
-  private ArtifactContainer resolve(String artifactName, String coordinate, List<? extends MavenArtifactInfo> dependencies, File file) {
-    {
+  private ArtifactContainer resolve(
+          String groupId, String artifactId, String version,
+          List<? extends MavenArtifactInfo> dependencies, File file) {
+    String coordinate = groupId + ":" + artifactId + ":" + version;
+    if (artifacts.containsKey(coordinate)) {
       ArtifactContainer container = artifacts.get(coordinate);
       if (container != null) {
-        if (container != IN_PROGRESS_MARKER) {
-          return container;
-        }
-        throw new CyclicalDependencyException(coordinate);
+        return container;
       }
+      throw new CyclicalDependencyException(coordinate);
     }
-    artifacts.put(coordinate, IN_PROGRESS_MARKER);
+    artifacts.put(coordinate, null);
 
-    ArtifactContainerBuilder builder = new ArtifactContainerBuilder(coordinate, artifactName);
+    Set<ArtifactContainer> artifactDependencies = new HashSet<>();
     try {
       for (MavenArtifactInfo dependency : dependencies) {
-        ArtifactContainer resolvedDependency = resolve(dependency);
-        builder.addDependency(resolvedDependency);
+        artifactDependencies.add(resolve(dependency));
       }
     } catch (CyclicalDependencyException e) {
       e.addCoordinate(coordinate);
       throw e;
     }
 
-    ArtifactContainer container = builder.build(file);
+    ArtifactContainer container = artifactCache.resolve(
+            groupId, artifactId, version,
+            artifactDependencies,
+            () -> new ArtifactContainerBuilder(groupId, artifactId, version, artifactDependencies).build(file));
     artifacts.put(coordinate, container);
     return container;
   }
@@ -143,36 +156,68 @@ public class Resolver {
     return coordinate.getGroupId() + ":" + coordinate.getArtifactId() + ":" + coordinate.getVersion();
   }
 
-  private static String getArtifactName(MavenCoordinate coordinate) {
-    return coordinate.getGroupId() + ":" + coordinate.getArtifactId();
+  public List<ArtifactContainer> getRoots() {
+    return roots;
+  }
+
+  public Map<String, ArtifactContainer> getArtifacts() {
+    return artifacts;
   }
 
   public void printDependencyTree() {
     System.out.println("Dependency tree:");
-    printDependencies("  ", new HashSet<>(), roots);
+    printDependencies("  ", new HashMap<>(), roots, new AtomicInteger());
   }
 
-  private void printDependencies(String indent, Set<ArtifactContainer> visited, Collection<ArtifactContainer> artifacts) {
+  private void printDependencies(String indent,
+                                 Map<ArtifactContainer, Integer> visited,
+                                 Collection<ArtifactContainer> artifacts,
+                                 AtomicInteger currentLine) {
     String nextIndent = indent + "  ";
     for (ArtifactContainer value : artifacts) {
       Set<ArtifactContainer> dependencies = value.getDependencies();
-      boolean hasDependencies = !dependencies.isEmpty();
-      boolean doVisit = hasDependencies && visited.add(value);
-      boolean truncated = hasDependencies && !doVisit;
-      System.out.println(indent + value.getCoordinate() + (truncated ? " (truncated)" : ""));
-      if (doVisit) {
-        System.out.println(nextIndent + "actual:");
-        value.printDependencies(nextIndent + "  ");
-        System.out.println(nextIndent + "declared:");
-        printDependencies(nextIndent + "  ", visited, dependencies);
+      Integer lineNumber = visited.get(value);
+      if (lineNumber != null) {
+        String s = indent + value.getCoordinate() + " (see #" + lineNumber + ")";
+        System.out.println("     " + s);
+      } else {
+        String s = indent + value.getCoordinate();
+        printWithLine(currentLine, s);
+        visited.put(value, currentLine.get());
+
+        if (!dependencies.isEmpty()) {
+          //System.out.println("     " + nextIndent + "actual:");
+          //value.printDependencies(nextIndent + "  ");
+          //System.out.println("     " + nextIndent + "declared:");
+          printDependencies(nextIndent + "  ", visited, dependencies, currentLine);
+        }
       }
     }
   }
 
-  public void showTransitiveProblems() {
-    System.out.println("Transitive problems:");
-    for (ArtifactContainer value : artifacts.values()) {
-      value.showTransitive();
+  private void printWithLine(AtomicInteger currentLine, String s) {
+    int num = currentLine.incrementAndGet();
+    System.out.printf("%3d: %s\n", num, s);
+  }
+
+  public void printUnusedWarnings() {
+    Set<ArtifactContainer> unused = artifacts.values().stream()
+            .filter(container -> !container.getUnusedDependencies().isEmpty())
+            .collect(Collectors.toSet());
+
+    if (!unused.isEmpty()) {
+      System.out.println("Unused dependencies:");
+      unused.forEach(ArtifactContainer::printUnusedDependencies);
+    }
+  }
+
+  public void printUndeclaredWarnings() {
+    Set<ArtifactContainer> undeclared = artifacts.values().stream()
+            .filter(container -> !container.getUndeclared().isEmpty())
+            .collect(Collectors.toSet());
+    if (!undeclared.isEmpty()) {
+      System.out.println("Undeclared dependencies:");
+      undeclared.forEach(ArtifactContainer::printUndeclaredDependencies);
     }
   }
 }

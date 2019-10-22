@@ -13,80 +13,55 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.Callable;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 class ArtifactContainerBuilder {
 
-  private final String coordinate;
-  private final String artifactName;
+  private final String groupId;
+  private final String artifactId;
+  private final String version;
 
   // Direct declared dependencies
   private final Set<ArtifactContainer> dependencies;
 
-  // Set of declared dependencies that are not used
-  private final Set<ArtifactContainer> unusedDependencies = new HashSet<>();
-
-  // Set of classes that this artifact defines
+  // Set of classes that are defined in this artifact
   private final Set<String> definedClasses = new HashSet<>();
 
-  // Map of class -> artifacts that define that class
-  private final Map<String, Set<ArtifactContainer>> dependsOnClasses = new HashMap<>();
-
-  // Set of classes which were not found anywhere
-  private final Set<String> unknownDependencies = new HashSet<>();
+  // Set of classes that are referenced from this artifact
+  private final Set<String> usedClasses = new HashSet<>();
 
   private final MyClassVisitor myClassVisitor;
 
-  public ArtifactContainerBuilder(String coordinate, String artifactName) {
-    this.coordinate = coordinate;
-    this.artifactName = artifactName;
-    this.dependencies = new HashSet<>();
+  ArtifactContainerBuilder(
+          String groupId,
+          String artifactId,
+          String version,
+          Set<ArtifactContainer> dependencies) {
+    this.groupId = groupId;
+    this.artifactId = artifactId;
+    this.version = version;
+    this.dependencies = dependencies;
     this.myClassVisitor = new MyClassVisitor(this);
   }
 
-  public void addClass(String className) {
-    if (className.startsWith("[")) {
-      throw new IllegalArgumentException("Unexpected class: " + className);
-    }
-    if (dependsOnClasses.containsKey(className) || unknownDependencies.contains(className)) {
-      return;
-    }
-
-    Set<ArtifactContainer> containers = findContainers(className);
-    if (containers.isEmpty()) {
-      unknownDependencies.add(className);
-    } else {
-      dependsOnClasses.put(className, containers);
-    }
-  }
-
-  private Set<ArtifactContainer> findContainers(String className) {
-    if (definedClasses.contains(className)) {
-      return Set.of();
-    }
-    HashSet<ArtifactContainer> set = new HashSet<>();
-    for (ArtifactContainer dependency : dependencies) {
-      set.addAll(dependency.findContainers(className));
-    }
-    return set;
-  }
-
-  public void addDefinition(String className) {
+  void addDefinition(String className) {
     definedClasses.add(className);
   }
 
-  void addDescriptor(String descriptor) {
-    addDescriptor(Type.getType(descriptor));
-  }
-
-  public void addOwner(String owner) {
+  void addOwner(String owner) {
     if (owner.startsWith("[")) {
       addDescriptor(owner);
     } else {
       addClass(owner);
     }
+  }
+
+  void addDescriptor(String descriptor) {
+    addDescriptor(Type.getType(descriptor));
   }
 
   private void addDescriptor(Type type) {
@@ -108,32 +83,112 @@ class ArtifactContainerBuilder {
     }
   }
 
-  @Override
-  public String toString() {
-    return coordinate;
+  void addClass(String className) {
+    if (className.startsWith("[")) {
+      throw new IllegalArgumentException("Unexpected class: " + className);
+    }
+    usedClasses.add(className);
+  }
+
+  private String getCoordinate() {
+    return groupId + ":" + artifactId + ":" + version;
   }
 
   ArtifactContainer build(File file) {
-    loadClasses(file);
+    measure("read classes", () -> loadClasses(file));
 
-    dependsOnClasses.keySet().removeIf(definedClasses::contains);
-    unknownDependencies.removeIf(definedClasses::contains);
+    usedClasses.removeAll(definedClasses);
 
-    Set<String> allUsed = dependsOnClasses.values().stream()
-            .flatMap(Collection::stream)
-            .map(ArtifactContainer::getArtifactName)
-            .collect(Collectors.toSet());
+    Set<ArtifactContainer> flattenedDependencies = new HashSet<>(dependencies);
+    for (ArtifactContainer dependency : dependencies) {
+      flattenedDependencies.addAll(dependency.getFlattenedDependencies());
+    }
 
-    unusedDependencies.addAll(dependencies);
+    // Map of class -> artifacts that define that class
+    final Map<String, Set<ArtifactContainer>> dependsOnClasses = new HashMap<>();
+
+    measure("find containers", () -> {
+      for (String className : usedClasses) {
+        dependsOnClasses.put(className, findContainers(className, flattenedDependencies));
+      }
+    });
+
+    Set<String> allUsed = measure("find all used", () ->
+            dependsOnClasses.values().stream()
+                    .flatMap(Collection::stream)
+                    .map(ArtifactContainer::getArtifactName)
+                    .collect(Collectors.toSet()));
+
+    // Set of declared dependencies that are not used
+    final Set<ArtifactContainer> unusedDependencies = new HashSet<>(dependencies);
     unusedDependencies.removeIf(artifactContainer -> allUsed.contains(artifactContainer.getArtifactName()));
 
+    Set<ArtifactContainer> undeclared = measure("find undeclared", () ->
+            dependsOnClasses.values().stream()
+                    .filter(this::isMissing)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet()));
+
+    Map<String, Set<ArtifactContainer>> dependencyMap = Node.getDependencyMap(dependsOnClasses);
+    Map<String, Set<String>> mappings = dependencyMap.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> mapToName(e.getValue())));
+    mappings = new TreeMap<>(mappings);
+
+
     return new ArtifactContainer(
-            coordinate, artifactName,
+            groupId, artifactId, version,
             dependencies,
+            flattenedDependencies,
             unusedDependencies,
             definedClasses,
-            dependsOnClasses,
-            unknownDependencies);
+            mappings,
+            undeclared);
+  }
+
+  private Set<String> mapToName(Set<ArtifactContainer> value) {
+    return value.stream().map(ArtifactContainer::getArtifactName).collect(Collectors.toSet());
+  }
+
+  private void measure(String s, Runnable runnable) {
+    long t1 = System.currentTimeMillis();
+    runnable.run();
+    long t2 = System.currentTimeMillis();
+    long diff = t2 - t1;
+    if (diff > 10) {
+      System.out.println(getCoordinate() + ": time for " + s + ": " + diff + " ms");
+    }
+  }
+
+  private <T> T measure(String s, Callable<T> callable) {
+    try {
+      long t1 = System.currentTimeMillis();
+      T value = callable.call();
+      long t2 = System.currentTimeMillis();
+      long diff = t2 - t1;
+      if (diff > 10) {
+        System.out.println(getCoordinate() + ": time for " + s + ": " + diff + " ms");
+      }
+      return value;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private Set<ArtifactContainer> findContainers(String className, Set<ArtifactContainer> flattenedDependencies) {
+    HashSet<ArtifactContainer> set = new HashSet<>();
+    for (ArtifactContainer dependency : flattenedDependencies) {
+      if (dependency.definesClass(className)) {
+        set.add(dependency);
+      }
+    }
+    return set;
+  }
+
+  private boolean isMissing(Set<ArtifactContainer> containers) {
+    return containers.stream()
+            .filter(dependencies::contains)
+            .findAny()
+            .isEmpty();
   }
 
   private void loadClasses(File file) {
@@ -173,18 +228,14 @@ class ArtifactContainerBuilder {
     }
   }
 
-  private void loadClass(InputStream inputStream) throws IOException {
-    ClassReader classReader = new ClassReader(inputStream);
-    classReader.accept(myClassVisitor, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-  }
-
   private void loadClassFile(File file) throws IOException {
     try (InputStream inputStream = new FileInputStream(file)) {
       loadClass(inputStream);
     }
   }
 
-  public void addDependency(ArtifactContainer coordinate) {
-    dependencies.add(coordinate);
+  private void loadClass(InputStream inputStream) throws IOException {
+    ClassReader classReader = new ClassReader(inputStream);
+    classReader.accept(myClassVisitor, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
   }
 }

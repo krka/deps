@@ -145,7 +145,8 @@ class MyMethodVisitor extends MethodVisitor {
 
   @Override
   public AnnotationVisitor visitInsnAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-    return super.visitInsnAnnotation(typeRef, typePath, descriptor, visible);
+    artifactContainer.addDescriptor(descriptor);
+    return annotationVisitor;
   }
 
   @Override
@@ -159,7 +160,7 @@ class MyMethodVisitor extends MethodVisitor {
   @Override
   public AnnotationVisitor visitTryCatchAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
     artifactContainer.addDescriptor(descriptor);
-    return super.visitTryCatchAnnotation(typeRef, typePath, descriptor, visible);
+    return annotationVisitor;
   }
 
   @Override
@@ -171,7 +172,7 @@ class MyMethodVisitor extends MethodVisitor {
   @Override
   public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start, Label[] end, int[] index, String descriptor, boolean visible) {
     artifactContainer.addDescriptor(descriptor);
-    return super.visitLocalVariableAnnotation(typeRef, typePath, start, end, index, descriptor, visible);
+    return annotationVisitor;
   }
 
   @Override
