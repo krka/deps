@@ -1,3 +1,5 @@
+package se.krka.deps;
+
 import org.jboss.shrinkwrap.resolver.api.maven.Maven;
 import org.jboss.shrinkwrap.resolver.api.maven.MavenArtifactInfo;
 import org.jboss.shrinkwrap.resolver.api.maven.MavenResolvedArtifact;
@@ -18,12 +20,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Resolver {
+  private static final ArtifactContainer IN_PROGRESS_MARKER = ArtifactContainer.IN_PROGRESS_MARKER;
+
   // Map of artifact name -> artifact
   private final Map<String, ArtifactContainer> artifacts = new HashMap<>();
 
-  private List<ArtifactContainer> roots = new ArrayList<>();
+  private final List<ArtifactContainer> roots = new ArrayList<>();
 
-  public static Resolver create(List<MavenResolvedArtifact> artifacts) {
+  private static Resolver create(List<MavenResolvedArtifact> artifacts) {
     Resolver resolver = new Resolver();
     System.out.println("Resolving dependencies:");
     for (MavenResolvedArtifact artifact : artifacts) {
@@ -84,14 +88,6 @@ public class Resolver {
   private ArtifactContainer resolve(MavenCoordinate coordinate1) {
     String coordinate = getCoordinate(coordinate1);
 
-    ArtifactContainer container = artifacts.get(coordinate);
-    if (container != null) {
-      if (container.isResolved()) {
-        return container;
-      }
-      throw new CyclicalDependencyException(coordinate);
-    }
-
     MavenResolvedArtifact resolvedArtifact = Maven.resolver()
             .resolve(coordinate)
             .withoutTransitivity()
@@ -111,38 +107,36 @@ public class Resolver {
     return resolve(getArtifactName(coordinate1), coordinate, dependencies, file);
   }
 
+  private ArtifactContainer resolve(String artifactName, String coordinate, MavenArtifactInfo[] dependencies, File file) {
+    return resolve(artifactName, coordinate, Arrays.asList(dependencies), file);
+  }
+
   private ArtifactContainer resolve(String artifactName, String coordinate, List<? extends MavenArtifactInfo> dependencies, File file) {
-    List<String> dependencyCoordinates = dependencies.stream()
-            .map(MavenArtifactInfo::getCoordinate)
-            .map(Resolver::getCoordinate)
-            .collect(Collectors.toList());
-
-    ArtifactContainer container = artifacts.get(coordinate);
-    if (container != null) {
-      if (container.isResolved()) {
-        return container;
+    {
+      ArtifactContainer container = artifacts.get(coordinate);
+      if (container != null) {
+        if (container != IN_PROGRESS_MARKER) {
+          return container;
+        }
+        throw new CyclicalDependencyException(coordinate);
       }
-      throw new CyclicalDependencyException(coordinate);
     }
-    container = new ArtifactContainer(coordinate, artifactName);
-    artifacts.put(coordinate, container);
+    artifacts.put(coordinate, IN_PROGRESS_MARKER);
 
+    ArtifactContainerBuilder builder = new ArtifactContainerBuilder(coordinate, artifactName);
     try {
       for (MavenArtifactInfo dependency : dependencies) {
         ArtifactContainer resolvedDependency = resolve(dependency);
-        container.addDependency(resolvedDependency);
+        builder.addDependency(resolvedDependency);
       }
     } catch (CyclicalDependencyException e) {
       e.addCoordinate(coordinate);
       throw e;
     }
 
-    container.populate(file);
+    ArtifactContainer container = builder.build(file);
+    artifacts.put(coordinate, container);
     return container;
-  }
-
-  private ArtifactContainer resolve(String artifactName, String coordinate, MavenArtifactInfo[] dependencies, File file) {
-    return resolve(artifactName, coordinate, Arrays.asList(dependencies), file);
   }
 
   private static String getCoordinate(MavenCoordinate coordinate) {

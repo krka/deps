@@ -1,10 +1,12 @@
+package se.krka.deps;
+
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Opcodes;
 
 class MyAnnotationVisitor extends AnnotationVisitor {
-  private final ArtifactContainer artifactContainer;
+  private final ArtifactContainerBuilder artifactContainer;
 
-  public MyAnnotationVisitor(ArtifactContainer artifactContainer) {
+  MyAnnotationVisitor(ArtifactContainerBuilder artifactContainer) {
     super(Opcodes.ASM7);
     this.artifactContainer = artifactContainer;
   }
@@ -31,8 +33,4 @@ class MyAnnotationVisitor extends AnnotationVisitor {
     return super.visitArray(name);
   }
 
-  @Override
-  public void visitEnd() {
-    super.visitEnd();
-  }
 }

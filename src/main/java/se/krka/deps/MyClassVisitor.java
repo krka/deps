@@ -1,3 +1,5 @@
+package se.krka.deps;
+
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
@@ -7,12 +9,12 @@ import org.objectweb.asm.TypePath;
 import static org.objectweb.asm.Opcodes.ASM7;
 
 class MyClassVisitor extends ClassVisitor {
-  private final ArtifactContainer artifactContainer;
+  private final ArtifactContainerBuilder artifactContainer;
   private final MyMethodVisitor methodVisitor;
   private final MyAnnotationVisitor annotationVisitor;
   private final MyFieldVisitor fieldVisitor;
 
-  MyClassVisitor(ArtifactContainer artifactContainer) {
+  MyClassVisitor(ArtifactContainerBuilder artifactContainer) {
     super(ASM7);
     this.artifactContainer = artifactContainer;
     annotationVisitor = new MyAnnotationVisitor(artifactContainer);
@@ -47,11 +49,6 @@ class MyClassVisitor extends ClassVisitor {
   public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
     artifactContainer.addDescriptor(descriptor);
     return methodVisitor;
-  }
-
-  @Override
-  public void visitEnd() {
-    super.visitEnd();
   }
 
   @Override

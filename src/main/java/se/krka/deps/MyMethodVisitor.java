@@ -1,3 +1,5 @@
+package se.krka.deps;
+
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.Handle;
@@ -8,10 +10,10 @@ import org.objectweb.asm.TypePath;
 import static org.objectweb.asm.Opcodes.ASM7;
 
 class MyMethodVisitor extends MethodVisitor {
-  private final ArtifactContainer artifactContainer;
+  private final ArtifactContainerBuilder artifactContainer;
   private final AnnotationVisitor annotationVisitor;
 
-  public MyMethodVisitor(ArtifactContainer artifactContainer, MyAnnotationVisitor annotationVisitor) {
+  MyMethodVisitor(ArtifactContainerBuilder artifactContainer, MyAnnotationVisitor annotationVisitor) {
     super(ASM7);
     this.artifactContainer = artifactContainer;
     this.annotationVisitor = annotationVisitor;
@@ -53,11 +55,6 @@ class MyMethodVisitor extends MethodVisitor {
   @Override
   public void visitAttribute(Attribute attribute) {
     super.visitAttribute(attribute);
-  }
-
-  @Override
-  public void visitCode() {
-    super.visitCode();
   }
 
   @Override
@@ -185,11 +182,6 @@ class MyMethodVisitor extends MethodVisitor {
   @Override
   public void visitMaxs(int maxStack, int maxLocals) {
     super.visitMaxs(maxStack, maxLocals);
-  }
-
-  @Override
-  public void visitEnd() {
-    super.visitEnd();
   }
 
 }
