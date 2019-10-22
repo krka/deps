@@ -13,6 +13,7 @@ class MyClassVisitor extends ClassVisitor {
   private final MyMethodVisitor methodVisitor;
   private final MyAnnotationVisitor annotationVisitor;
   private final MyFieldVisitor fieldVisitor;
+  private String className;
 
   MyClassVisitor(ArtifactContainerBuilder artifactContainer) {
     super(ASM7);
@@ -24,7 +25,12 @@ class MyClassVisitor extends ClassVisitor {
 
   @Override
   public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-    artifactContainer.addDefinition(name);
+    className = name;
+    if (className.equals("module-info")) {
+      // Not useful to keep this
+      return;
+    }
+    artifactContainer.addDefinition(className);
 
     if (superName != null) {
       artifactContainer.addClass(superName);
@@ -36,7 +42,9 @@ class MyClassVisitor extends ClassVisitor {
 
   @Override
   public void visitInnerClass(String name, String outerName, String innerName, int access) {
-    artifactContainer.addDefinition(name);
+    if (outerName == null || outerName.equals(className)) {
+      artifactContainer.addDefinition(name);
+    }
   }
 
   @Override

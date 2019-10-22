@@ -58,9 +58,17 @@ public class Resolver {
             .setGoals("clean", "package")
             .build();
 
-    File file = new File(builtProject.getTargetDirectory(), "classes");
-    // TODO: use getArchive() instead
+    Resolver resolver = new Resolver();
+    addModules(resolver, builtProject);
+    return resolver;
+  }
 
+  private static void addModules(Resolver resolver, BuiltProject module) {
+    addRoot(resolver, module);
+    module.getModules().forEach(submodule -> addModules(resolver, submodule));
+  }
+
+  private static void addRoot(Resolver resolver, BuiltProject builtProject) {
     List<MavenResolvedArtifact> dependencies = builtProject.getModel()
             .getDependencies().stream()
             .filter(dependency -> Set.of("compile", "provided").contains(dependency.getScope()))
@@ -73,10 +81,10 @@ public class Resolver {
     String artifactId = builtProject.getModel().getArtifactId();
     String version = builtProject.getModel().getVersion();
 
-    Resolver resolver = new Resolver();
-    resolver.roots.add(resolver.resolve(groupId, artifactId, version, dependencies, file));
+    File file = new File(builtProject.getTargetDirectory(), "classes");
+    // TODO: use getArchive() instead
 
-    return resolver;
+    resolver.roots.add(resolver.resolve(groupId, artifactId, version, dependencies, file));
   }
 
   private ArtifactContainer resolve(MavenArtifactInfo artifact) {
