@@ -12,9 +12,9 @@ import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -23,7 +23,7 @@ import static java.lang.System.getProperty;
 class ArtifactCache {
   private final File dir;
 
-  public ArtifactCache(File dir) {
+  private ArtifactCache(File dir) {
     this.dir = dir;
     if (!dir.exists()) {
       if (!dir.mkdirs()) {
@@ -35,33 +35,30 @@ class ArtifactCache {
     }
   }
 
-  public static ArtifactCache getDefault() {
+  static ArtifactCache getDefault() {
     String homeDir = getProperty("user.home");
     File root = new File(new File(new File(homeDir, ".m2"), "repository"), "dependency-data");
     return new ArtifactCache(root);
   }
 
-  public ArtifactContainer resolve(
-          String groupId, String artifactId, String version,
-          Set<ArtifactContainer> dependencies,
-          Callable<ArtifactContainer> provider) {
-    String coordinate = groupId + "_" + artifactId + "_" + version;
-    File dir = new File(this.dir, coordinate);
+  ArtifactContainer resolve(
+          Resolver resolver, Coordinate coordinate,
+          Callable<ArtifactContainer> fallback) {
+    String filename = coordinate.toString().replace(':', '_') + ".json.gz";
+    File file = new File(dir, filename);
     try {
-      if (dir.exists()) {
-        JSONObject data = getObject(dir, "data.json");
-        HashSet<ArtifactContainer> flattenedDependencies = new HashSet<>(dependencies);
-        for (ArtifactContainer dependency : dependencies) {
-          flattenedDependencies.addAll(dependency.getFlattenedDependencies());
-        }
-        return JsonReader.fromJson(data, dependencies, flattenedDependencies);
+      if (file.exists()) {
+        JSONObject data = getObject(file);
+        IncompleteArtifact artifactContainer = JsonReader.fromJson(data);
+        Set<ArtifactContainer> dependencies = artifactContainer.getDependencies().stream()
+                .map(resolver::resolve)
+                .collect(Collectors.toSet());
+
+        return artifactContainer.complete(dependencies);
       } else {
-        ArtifactContainer artifactContainer = provider.call();
-        if (!dir.mkdirs()) {
-          throw new IOException("Could not create directory: " + dir);
-        }
+        ArtifactContainer artifactContainer = fallback.call();
         JSONObject jsonObject = JsonWriter.toJsonObject(artifactContainer);
-        writeObject(dir, "data.json", jsonObject);
+        writeObject(file, jsonObject);
         return artifactContainer;
       }
     } catch (RuntimeException e) {
@@ -71,15 +68,13 @@ class ArtifactCache {
     }
   }
 
-  private void writeObject(File dir, String filename, JSONObject object) throws IOException {
-    File file = new File(dir, filename + ".gz");
+  private void writeObject(File file, JSONObject object) throws IOException {
     try (Writer writer = new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(file)), StandardCharsets.UTF_8)) {
       object.write(writer, 2, 0);
     }
   }
 
-  private JSONObject getObject(File dir, String filename) throws IOException {
-    File file = new File(dir, filename + ".gz");
+  private JSONObject getObject(File file) throws IOException {
     try (Reader reader = new InputStreamReader(new GZIPInputStream(new FileInputStream(file)), StandardCharsets.UTF_8)) {
       return new JSONObject(new JSONTokener(reader));
     }

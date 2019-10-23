@@ -14,16 +14,13 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.Callable;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 class ArtifactContainerBuilder {
 
-  private final String groupId;
-  private final String artifactId;
-  private final String version;
+  private final Coordinate coordinate;
 
   // Direct declared dependencies
   private final Set<ArtifactContainer> dependencies;
@@ -37,13 +34,9 @@ class ArtifactContainerBuilder {
   private final MyClassVisitor myClassVisitor;
 
   ArtifactContainerBuilder(
-          String groupId,
-          String artifactId,
-          String version,
+          Coordinate coordinate,
           Set<ArtifactContainer> dependencies) {
-    this.groupId = groupId;
-    this.artifactId = artifactId;
-    this.version = version;
+    this.coordinate = coordinate;
     this.dependencies = dependencies;
     this.myClassVisitor = new MyClassVisitor(this);
   }
@@ -90,8 +83,8 @@ class ArtifactContainerBuilder {
     usedClasses.add(className);
   }
 
-  private String getCoordinate() {
-    return groupId + ":" + artifactId + ":" + version;
+  private Coordinate getCoordinate() {
+    return coordinate;
   }
 
   ArtifactContainer build(File file) {
@@ -132,7 +125,7 @@ class ArtifactContainerBuilder {
 
 
     return new ArtifactContainer(
-            groupId, artifactId, version,
+            coordinate,
             dependencies,
             flattenedDependencies,
             unusedDependencies,

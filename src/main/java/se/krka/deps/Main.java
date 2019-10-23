@@ -17,7 +17,7 @@ public class Main {
 
     resolver.printDependencyTree();
 
-    //resolver.printUndeclaredWarnings();
+    resolver.printUndeclaredWarnings();
     resolver.printUnusedWarnings();
 
     long t2 = System.currentTimeMillis();
@@ -25,9 +25,8 @@ public class Main {
     System.out.println("Time: " + diff + " ms");
 
     // TODO:
-    // better tree view
-    // define API
     // handle submodules
+    // only include public classes as exported?
   }
 
 }

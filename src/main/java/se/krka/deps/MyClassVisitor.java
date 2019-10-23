@@ -4,6 +4,7 @@ import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.TypePath;
 
 import static org.objectweb.asm.Opcodes.ASM7;
@@ -30,7 +31,9 @@ class MyClassVisitor extends ClassVisitor {
       // Not useful to keep this
       return;
     }
-    artifactContainer.addDefinition(className);
+    if (isAccessible(access)) {
+      artifactContainer.addDefinition(className);
+    }
 
     if (superName != null) {
       artifactContainer.addClass(superName);
@@ -40,10 +43,16 @@ class MyClassVisitor extends ClassVisitor {
     }
   }
 
+  private boolean isAccessible(int access) {
+    return (access & Opcodes.ACC_PRIVATE) == 0;
+  }
+
   @Override
   public void visitInnerClass(String name, String outerName, String innerName, int access) {
     if (outerName == null || outerName.equals(className)) {
-      artifactContainer.addDefinition(name);
+      if (isAccessible(access)) {
+        artifactContainer.addDefinition(name);
+      }
     }
   }
 

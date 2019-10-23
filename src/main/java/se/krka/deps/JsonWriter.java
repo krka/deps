@@ -9,15 +9,17 @@ import java.util.Set;
 class JsonWriter {
   static JSONObject toJsonObject(ArtifactContainer container) {
     JSONObject object = new JSONObject();
-    object.put("groupId", container.getGroupId());
-    object.put("artifactId", container.getArtifactId());
-    object.put("version", container.getVersion());
+    object.put("coordinate", getCoordinate(container));
     object.put("dependencies", getDeclaredDependencies(container));
     object.put("usages", getUsages(container));
     object.put("classes", getClasses(container));
     object.put("unused", getUnused(container));
     object.put("undeclared", getUndeclared(container));
     return object;
+  }
+
+  private static JSONObject getCoordinate(ArtifactContainer container) {
+    return container.getCoordinate().toJson();
   }
 
   private static JSONArray getUnused(ArtifactContainer container) {
@@ -32,6 +34,8 @@ class JsonWriter {
     JSONArray array = new JSONArray();
     container.getUnusedDependencies().stream()
             .map(ArtifactContainer::getArtifactName)
+            .distinct()
+            .sorted()
             .forEach(array::put);
     return array;
   }
@@ -59,16 +63,14 @@ class JsonWriter {
 
   private static JSONObject getDependency(ArtifactContainer dependency, boolean transitive) {
     JSONObject object = new JSONObject();
-    object.put("groupId", dependency.getGroupId());
-    object.put("artifactId", dependency.getArtifactId());
-    object.put("version", dependency.getVersion());
+    object.put("coordinate", getCoordinate(dependency));
     object.put("transitive", transitive);
     return object;
   }
 
   private static JSONArray getClasses(ArtifactContainer container) {
     JSONArray array = new JSONArray();
-    container.getDefinedClasses().forEach(array::put);
+    container.getDefinedClasses().stream().sorted().forEach(array::put);
     return array;
   }
 }

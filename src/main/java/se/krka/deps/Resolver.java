@@ -4,7 +4,6 @@ import org.jboss.shrinkwrap.resolver.api.maven.Maven;
 import org.jboss.shrinkwrap.resolver.api.maven.MavenArtifactInfo;
 import org.jboss.shrinkwrap.resolver.api.maven.MavenResolvedArtifact;
 import org.jboss.shrinkwrap.resolver.api.maven.ScopeType;
-import org.jboss.shrinkwrap.resolver.api.maven.coordinate.MavenCoordinate;
 import org.jboss.shrinkwrap.resolver.api.maven.embedded.BuiltProject;
 import org.jboss.shrinkwrap.resolver.api.maven.embedded.EmbeddedMaven;
 
@@ -22,34 +21,23 @@ import java.util.stream.Collectors;
 
 public class Resolver {
   // Map of artifact name -> artifact
-  private final Map<String, ArtifactContainer> artifacts = new HashMap<>();
+  private final Map<Coordinate, ArtifactContainer> artifacts = new HashMap<>();
 
   private final List<ArtifactContainer> roots = new ArrayList<>();
 
   private final ArtifactCache artifactCache = ArtifactCache.getDefault();
 
-  private static Resolver create(List<MavenResolvedArtifact> artifacts) {
-    Resolver resolver = new Resolver();
-    for (MavenResolvedArtifact artifact : artifacts) {
-      resolver.roots.add(resolver.resolve(artifact.getCoordinate()));
-    }
-    return resolver;
-  }
-
   public static Resolver createFromPomfile(String filename) {
+    System.out.println("Resolving artifacts from pomfile: " + filename);
     List<MavenResolvedArtifact> artifacts = Maven.resolver().loadPomFromFile(filename)
             .importDependencies(ScopeType.COMPILE, ScopeType.PROVIDED)
             .resolve().withTransitivity().asList(MavenResolvedArtifact.class);
 
-    return create(artifacts);
-  }
-
-  public static Resolver createFromCoordinate(String coordinate) {
-    List<MavenResolvedArtifact> artifacts = Maven.resolver()
-            .resolve(coordinate)
-            .withTransitivity()
-            .asList(MavenResolvedArtifact.class);
-    return create(artifacts);
+    Resolver resolver = new Resolver();
+    for (MavenResolvedArtifact artifact : artifacts) {
+      resolver.roots.add(resolver.resolve(Coordinate.fromMaven(artifact.getCoordinate())));
+    }
+    return resolver;
   }
 
   public static Resolver createFromProject(String filename) {
@@ -62,6 +50,16 @@ public class Resolver {
     return resolver;
   }
 
+  public static Resolver createFromCoordinate(String coordinate) {
+    return createFromCoordinate(Coordinate.fromString(coordinate));
+  }
+
+  public static Resolver createFromCoordinate(Coordinate coordinate) {
+    Resolver resolver = new Resolver();
+    resolver.roots.add(resolver.resolve(coordinate));
+    return resolver;
+  }
+
   private static void addModules(Resolver resolver, BuiltProject module) {
     module.getModules().forEach(submodule -> addModules(resolver, submodule));
     addRoot(resolver, module);
@@ -71,67 +69,47 @@ public class Resolver {
     List<MavenResolvedArtifact> dependencies = builtProject.getModel()
             .getDependencies().stream()
             .filter(dependency -> Set.of("compile", "provided").contains(dependency.getScope()))
-            .map(dependency -> dependency.getGroupId() + ":" + dependency.getArtifactId() + ":" + dependency.getVersion())
-            .map(coordinate -> Maven.resolver().resolve(coordinate)
-                    .withoutTransitivity().asSingleResolvedArtifact())
+            .map(Coordinate::fromMaven)
+            .map(Resolver::resolveMavenArtifact)
             .collect(Collectors.toList());
 
-    String groupId = builtProject.getModel().getGroupId();
-    String artifactId = builtProject.getModel().getArtifactId();
-    String version = builtProject.getModel().getVersion();
+    Coordinate coordinate = Coordinate.fromModel(builtProject.getModel());
 
     File file = new File(builtProject.getTargetDirectory(), "classes");
-    // TODO: use getArchive() instead
 
-    resolver.roots.add(resolver.resolve(groupId, artifactId, version, dependencies, file));
+    ArtifactContainer result;
+    if (resolver.artifacts.containsKey(coordinate)) {
+      ArtifactContainer container = resolver.artifacts.get(coordinate);
+      if (container != null) {
+        result = container;
+      } else {
+        throw new CyclicalDependencyException(coordinate);
+      }
+    } else {
+      resolver.artifacts.put(coordinate, null);
+      Set<ArtifactContainer> artifactDependencies = resolveDependencies(resolver, dependencies, coordinate);
+      result = new ArtifactContainerBuilder(coordinate, artifactDependencies)
+              .build(file);
+
+      resolver.artifacts.put(coordinate, result);
+    }
+    resolver.roots.add(result);
   }
 
-  private ArtifactContainer resolve(MavenArtifactInfo artifact) {
-    return resolve(artifact.getCoordinate());
+  private static Set<ArtifactContainer> resolveDependencies(Resolver resolver, List<MavenResolvedArtifact> dependencies, Coordinate coordinate) {
+    try {
+      Set<ArtifactContainer> artifactDependencies = new HashSet<>();
+      for (MavenArtifactInfo dependency : dependencies) {
+        artifactDependencies.add(resolver.resolve(Coordinate.fromMaven(dependency.getCoordinate())));
+      }
+      return artifactDependencies;
+    } catch (CyclicalDependencyException e) {
+      e.addCoordinate(coordinate);
+      throw e;
+    }
   }
 
-  ArtifactContainer resolve(String groupId, String artifactId, String version) {
-    return resolve(groupId + ":" + artifactId + ":" + version);
-  }
-
-  private ArtifactContainer resolve(MavenCoordinate coordinate) {
-    return resolve(getCoordinate(coordinate));
-  }
-
-  private ArtifactContainer resolve(String coordinate) {
-    MavenResolvedArtifact resolvedArtifact = resolveMavenArtifact(coordinate);
-    return resolve(resolvedArtifact);
-  }
-
-  MavenResolvedArtifact resolveMavenArtifact(String coordinate) {
-    return Maven.resolver()
-              .resolve(coordinate)
-              .withoutTransitivity()
-              .asSingleResolvedArtifact();
-  }
-
-  private ArtifactContainer resolve(MavenResolvedArtifact artifact) {
-    MavenCoordinate coordinate = artifact.getCoordinate();
-    MavenArtifactInfo[] dependencies = artifact.getDependencies();
-    File file = artifact.asFile();
-    return resolve(coordinate, dependencies, file);
-  }
-
-  private ArtifactContainer resolve(MavenCoordinate coordinate, MavenArtifactInfo[] dependencies, File file) {
-    String groupId = coordinate.getGroupId();
-    String artifactId = coordinate.getArtifactId();
-    String version = coordinate.getVersion();
-    return resolve(groupId, artifactId, version, dependencies, file);
-  }
-
-  private ArtifactContainer resolve(String groupId, String artifactId, String version, MavenArtifactInfo[] dependencies, File file) {
-    return resolve(groupId, artifactId, version, Arrays.asList(dependencies), file);
-  }
-
-  private ArtifactContainer resolve(
-          String groupId, String artifactId, String version,
-          List<? extends MavenArtifactInfo> dependencies, File file) {
-    String coordinate = groupId + ":" + artifactId + ":" + version;
+  ArtifactContainer resolve(Coordinate coordinate) {
     if (artifacts.containsKey(coordinate)) {
       ArtifactContainer container = artifacts.get(coordinate);
       if (container != null) {
@@ -141,33 +119,41 @@ public class Resolver {
     }
     artifacts.put(coordinate, null);
 
-    Set<ArtifactContainer> artifactDependencies = new HashSet<>();
-    try {
-      for (MavenArtifactInfo dependency : dependencies) {
-        artifactDependencies.add(resolve(dependency));
-      }
-    } catch (CyclicalDependencyException e) {
-      e.addCoordinate(coordinate);
-      throw e;
-    }
-
     ArtifactContainer container = artifactCache.resolve(
-            groupId, artifactId, version,
-            artifactDependencies,
-            () -> new ArtifactContainerBuilder(groupId, artifactId, version, artifactDependencies).build(file));
+            this, coordinate,
+            () -> {
+              MavenResolvedArtifact resolvedArtifact = resolveMavenArtifact(coordinate);
+              MavenArtifactInfo[] dependencies = resolvedArtifact.getDependencies();
+              File file = resolvedArtifact.asFile();
+
+              try {
+                Set<ArtifactContainer> artifactDependencies =  Arrays.stream(dependencies)
+                        .map(dependency -> resolve(Coordinate.fromMaven(dependency.getCoordinate())))
+                        .collect(Collectors.toSet());
+                return new ArtifactContainerBuilder(coordinate, artifactDependencies).build(file);
+              } catch (CyclicalDependencyException e) {
+                e.addCoordinate(coordinate);
+                throw e;
+              }
+            });
+
     artifacts.put(coordinate, container);
     return container;
   }
 
-  private static String getCoordinate(MavenCoordinate coordinate) {
-    return coordinate.getGroupId() + ":" + coordinate.getArtifactId() + ":" + coordinate.getVersion();
+  private static MavenResolvedArtifact resolveMavenArtifact(Coordinate coordinate) {
+    System.out.println("Resolving artifact from coordinate: " + coordinate);
+    return Maven.resolver()
+              .resolve(coordinate.toString())
+              .withoutTransitivity()
+              .asSingleResolvedArtifact();
   }
 
   public List<ArtifactContainer> getRoots() {
     return roots;
   }
 
-  public Map<String, ArtifactContainer> getArtifacts() {
+  public Map<Coordinate, ArtifactContainer> getArtifacts() {
     return artifacts;
   }
 

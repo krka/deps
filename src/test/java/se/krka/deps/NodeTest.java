@@ -12,7 +12,7 @@ public class NodeTest {
   public void testSimple() {
     Map<String, Set<String>> input = Map.of("java.lang.String", Set.of("first"));
     Map<String, Set<String>> output = Node.getDependencyMap(input);
-    assertEquals(Map.of("*", Set.of("first")), output);
+    assertEquals(Map.of("**", Set.of("first")), output);
   }
 
   @Test
@@ -22,7 +22,7 @@ public class NodeTest {
             "java.lang.Object", Set.of("first")
             );
     Map<String, Set<String>> output = Node.getDependencyMap(input);
-    assertEquals(Map.of("*", Set.of("first")), output);
+    assertEquals(Map.of("**", Set.of("first")), output);
   }
 
   @Test
@@ -34,8 +34,22 @@ public class NodeTest {
             );
     Map<String, Set<String>> output = Node.getDependencyMap(input);
     assertEquals(Map.of(
+            "java.lang.**", Set.of("first"),
+            "java.util.**", Set.of("second")
+            ), output);
+  }
+
+  @Test
+  public void testSplitClasses() {
+    Map<String, Set<String>> input = Map.of(
+            "java.lang.String", Set.of("first"),
+            "java.lang.Object", Set.of("first"),
+            "java.lang.util.Something", Set.of("second")
+            );
+    Map<String, Set<String>> output = Node.getDependencyMap(input);
+    assertEquals(Map.of(
             "java.lang.*", Set.of("first"),
-            "java.util.*", Set.of("second")
+            "java.lang.util.**", Set.of("second")
             ), output);
   }
 

@@ -1,6 +1,7 @@
 package se.krka.deps;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -61,8 +62,15 @@ class Node<T> {
     Set<Set<T>> dependencies = getDependencies();
     if (dependencies.size() == 1) {
       classes.clear();
-      classes.put("*", dependencies.iterator().next());
+      classes.put("**", dependencies.iterator().next());
       nodes.clear();
+    } else {
+      Set<Set<T>> classDependencies = new HashSet<>(classes.values());
+      if (classDependencies.size() == 1) {
+        classes.clear();
+        classes.put("*", classDependencies.iterator().next());
+      }
+
     }
   }
 

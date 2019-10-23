@@ -6,9 +6,7 @@ import java.util.stream.Collectors;
 
 public class ArtifactContainer {
 
-  private final String groupId;
-  private final String artifactId;
-  private final String version;
+  private final Coordinate coordinate;
 
   // Direct declared dependencies
   private final Set<ArtifactContainer> dependencies;
@@ -30,18 +28,14 @@ public class ArtifactContainer {
 
 
   public ArtifactContainer(
-          String groupId,
-          String artifactId,
-          String version,
+          Coordinate coordinate,
           Set<ArtifactContainer> dependencies,
           Set<ArtifactContainer> flattenedDependencies,
           Set<ArtifactContainer> unusedDependencies,
           Set<String> definedClasses,
           Map<String, Set<String>> mappings,
           Set<ArtifactContainer> undeclared) {
-    this.groupId = groupId;
-    this.artifactId = artifactId;
-    this.version = version;
+    this.coordinate = coordinate;
     this.dependencies = dependencies;
     this.flattenedDependencies = flattenedDependencies;
     this.unusedDependencies = unusedDependencies;
@@ -60,7 +54,7 @@ public class ArtifactContainer {
 
   @Override
   public String toString() {
-    return getCoordinate();
+    return getCoordinate().toString();
   }
 
   public void printDependencies(String indent) {
@@ -93,24 +87,12 @@ public class ArtifactContainer {
     return dependencies;
   }
 
-  public String getGroupId() {
-    return groupId;
-  }
-
-  public String getArtifactId() {
-    return artifactId;
-  }
-
-  public String getVersion() {
-    return version;
-  }
-
-  public String getCoordinate() {
-    return groupId +":" + artifactId + ":" + version;
+  public Coordinate getCoordinate() {
+    return coordinate;
   }
 
   public String getArtifactName() {
-    return groupId + ":" + artifactId;
+    return coordinate.getArtifactName();
   }
 
   public Map<String, Set<String>> getMappings() {

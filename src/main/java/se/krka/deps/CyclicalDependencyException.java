@@ -3,14 +3,14 @@ package se.krka.deps;
 import java.util.ArrayList;
 
 public class CyclicalDependencyException extends RuntimeException {
-  private final ArrayList<Object> coordinates = new ArrayList<>();
+  private final ArrayList<Coordinate> coordinates = new ArrayList<>();
 
-  CyclicalDependencyException(String coordinate) {
+  CyclicalDependencyException(Coordinate coordinate) {
     super("Found cyclical dependency: ");
     addCoordinate(coordinate);
   }
 
-  void addCoordinate(String coordinate) {
+  void addCoordinate(Coordinate coordinate) {
     coordinates.add(coordinate);
   }
 
