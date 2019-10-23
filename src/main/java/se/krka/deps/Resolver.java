@@ -6,6 +6,8 @@ import org.jboss.shrinkwrap.resolver.api.maven.MavenResolvedArtifact;
 import org.jboss.shrinkwrap.resolver.api.maven.ScopeType;
 import org.jboss.shrinkwrap.resolver.api.maven.embedded.BuiltProject;
 import org.jboss.shrinkwrap.resolver.api.maven.embedded.EmbeddedMaven;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -20,6 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class Resolver {
+  private static final Logger logger = LoggerFactory.getLogger(Resolver.class);
+
   // Map of artifact name -> artifact
   private final Map<Coordinate, ArtifactContainer> artifacts = new HashMap<>();
 
@@ -142,7 +146,7 @@ public class Resolver {
   }
 
   private static MavenResolvedArtifact resolveMavenArtifact(Coordinate coordinate) {
-    System.out.println("Resolving artifact from coordinate: " + coordinate);
+    logger.info("Resolving artifact from coordinate: {}", coordinate);
     return Maven.resolver()
               .resolve(coordinate.toString())
               .withoutTransitivity()
