@@ -107,7 +107,7 @@ class ArtifactContainerBuilder {
 
     // Set of declared dependencies that are not used
     final Set<ArtifactContainer> unusedDependencies = new HashSet<>(dependencies);
-    unusedDependencies.removeIf(artifactContainer -> allUsed.contains(artifactContainer.getArtifactName()));
+    unusedDependencies.removeIf(artifactContainer -> isUsed(artifactContainer, allUsed));
 
     Set<ArtifactContainer> undeclared = dependsOnClasses.values().stream()
                     .filter(this::isMissing)
@@ -128,6 +128,17 @@ class ArtifactContainerBuilder {
             definedClasses,
             mappings,
             undeclared);
+  }
+
+  private boolean isUsed(ArtifactContainer container, Set<String> allUsed) {
+    if (!container.getDefinedClasses().isEmpty()) {
+      return allUsed.contains(container.getArtifactName());
+    }
+
+    // Remove from unused if at least one of the dependencies are used
+    return container.getDependencies().stream()
+            .anyMatch(dependency -> isUsed(dependency, allUsed));
+
   }
 
   private Set<String> mapToName(Set<ArtifactContainer> value) {
