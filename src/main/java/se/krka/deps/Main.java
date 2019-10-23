@@ -17,8 +17,8 @@ public class Main {
 
     resolver.printDependencyTree();
 
-    resolver.printUndeclaredWarnings();
-    resolver.printUnusedWarnings();
+    resolver.getRoots().forEach(ArtifactContainer::printUndeclaredDependencies);
+    resolver.getRoots().forEach(ArtifactContainer::printUnusedDependencies);
 
     long t2 = System.currentTimeMillis();
     long diff = t2 - t1;
@@ -27,6 +27,7 @@ public class Main {
     // TODO:
     // handle submodules
     // only include public classes as exported?
+    // Make it work for spotify settings.xml
   }
 
 }
