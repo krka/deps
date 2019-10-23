@@ -44,6 +44,9 @@ class ArtifactCache {
   ArtifactContainer resolve(
           Resolver resolver, Coordinate coordinate,
           Callable<ArtifactContainer> fallback) {
+    if (coordinate.isSnapshot()) {
+      return invoke(fallback);
+    }
     String filename = coordinate.toString().replace(':', '_') + ".json.gz";
     File file = new File(dir, filename);
     try {
@@ -56,11 +59,19 @@ class ArtifactCache {
 
         return artifactContainer.complete(dependencies);
       } else {
-        ArtifactContainer artifactContainer = fallback.call();
+        ArtifactContainer artifactContainer = invoke(fallback);
         JSONObject jsonObject = JsonWriter.toJsonObject(artifactContainer);
         writeObject(file, jsonObject);
         return artifactContainer;
       }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private ArtifactContainer invoke(Callable<ArtifactContainer> fallback) {
+    try {
+      return fallback.call();
     } catch (RuntimeException e) {
       throw e;
     } catch (Exception e) {

@@ -14,13 +14,14 @@ public class Coordinate {
   private final String version;
   private final PackagingType packagingType;
   private final String classifier;
+  private final boolean isSnapshot;
 
   private Coordinate(String groupId, String artifactId, String version) {
-    this.groupId = groupId;
-    this.artifactId = artifactId;
-    this.packagingType = PackagingType.JAR;
-    this.classifier = packagingType.getClassifier();
-    this.version = version;
+    this(groupId, artifactId, version, PackagingType.JAR);
+  }
+
+  private Coordinate(String groupId, String artifactId, String version, PackagingType packagingType) {
+    this(groupId, artifactId, version, packagingType, packagingType.getClassifier());
   }
 
   private Coordinate(String groupId, String artifactId, String version, PackagingType packagingType, String classifier) {
@@ -29,6 +30,7 @@ public class Coordinate {
     this.version = version;
     this.packagingType = packagingType;
     this.classifier = classifier;
+    this.isSnapshot = version.endsWith("-SNAPSHOT");
   }
 
   static Coordinate fromMaven(MavenCoordinate coordinate) {
@@ -136,5 +138,9 @@ public class Coordinate {
   @Override
   public int hashCode() {
     return Objects.hash(groupId, artifactId, version, packagingType, classifier);
+  }
+
+  public boolean isSnapshot() {
+    return isSnapshot;
   }
 }
