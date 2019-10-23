@@ -109,7 +109,7 @@ public class Resolver {
     }
   }
 
-  ArtifactContainer resolve(Coordinate coordinate) {
+  public ArtifactContainer resolve(Coordinate coordinate) {
     if (artifacts.containsKey(coordinate)) {
       ArtifactContainer container = artifacts.get(coordinate);
       if (container != null) {

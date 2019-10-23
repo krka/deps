@@ -22,7 +22,6 @@ class Node<T> {
   }
 
   private void add(String className, Set<T> foundIn) {
-    className = className.replace('/', '.');
     Node<T> node = this;
     String[] parts = className.split("\\.");
     String lastPart = parts[parts.length - 1];

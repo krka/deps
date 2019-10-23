@@ -99,6 +99,45 @@ public class ArtifactContainer {
     return mappings;
   }
 
+  public Set<String> getUsages(String className) {
+    Set<String> usages = mappings.get(className);
+    if (usages != null) {
+      return usages;
+    }
+
+    usages = mappings.get("**");
+    if (usages != null) {
+      return usages;
+    }
+
+    int lastPeriod = className.lastIndexOf('.');
+    if (lastPeriod == -1) {
+      // No package name at all, try any root package
+      usages = mappings.get("*");
+      if (usages != null) {
+        return usages;
+      }
+    }
+    String packageName = className.substring(0, lastPeriod - 1);
+    return getUsagesForPackage(packageName);
+  }
+
+  private Set<String> getUsagesForPackage(String packageName) {
+    Set<String> usages = mappings.get(packageName + ".**");
+    if (usages != null) {
+      return usages;
+    }
+    usages = mappings.get(packageName + ".*");
+    if (usages != null) {
+      return usages;
+    }
+    int lastPeriod = packageName.lastIndexOf('.');
+    if (lastPeriod == -1) {
+      return Set.of();
+    }
+    return getUsagesForPackage(packageName.substring(0, lastPeriod - 1));
+  }
+
   public Set<String> getDefinedClasses() {
     return definedClasses;
   }

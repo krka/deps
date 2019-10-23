@@ -62,4 +62,28 @@ public class NodeTest {
     Map<String, Set<String>> output = Node.getDependencyMap(input);
     assertEquals(input, output);
   }
+
+  @Test
+  public void testNoPackageMerge() {
+    Map<String, Set<String>> input = Map.of(
+            "String", Set.of("first"),
+            "Object", Set.of("first")
+            );
+    Map<String, Set<String>> output = Node.getDependencyMap(input);
+    assertEquals(Map.of("**", Set.of("first")), output);
+  }
+
+  @Test
+  public void testNoPackageDontMerge() {
+    Map<String, Set<String>> input = Map.of(
+            "String", Set.of("first"),
+            "Object", Set.of("first"),
+            "java.Something", Set.of("second")
+            );
+    Map<String, Set<String>> output = Node.getDependencyMap(input);
+    Map<String, Set<String>> expected = Map.of(
+            "*", Set.of("first"),
+            "java.**", Set.of("second"));
+    assertEquals(expected, output);
+  }
 }

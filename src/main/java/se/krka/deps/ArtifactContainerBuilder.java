@@ -42,7 +42,7 @@ class ArtifactContainerBuilder {
   }
 
   void addDefinition(String className) {
-    definedClasses.add(className);
+    definedClasses.add(className.replace('/', '.'));
   }
 
   void addOwner(String owner) {
@@ -80,11 +80,7 @@ class ArtifactContainerBuilder {
     if (className.startsWith("[")) {
       throw new IllegalArgumentException("Unexpected class: " + className);
     }
-    usedClasses.add(className);
-  }
-
-  private Coordinate getCoordinate() {
-    return coordinate;
+    usedClasses.add(className.replace('/', '.'));
   }
 
   ArtifactContainer build(File file) {
